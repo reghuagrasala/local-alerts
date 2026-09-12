@@ -1,4 +1,4 @@
-# Local Alerts V8
+# Local Alerts V9
 
 - Current KSDMA/IMD-derived sample alerts are included for interface verification.
 - User contacts are not stored in GitHub.
@@ -29,3 +29,15 @@
 - Public emergency/contact directory is available immediately in Report to; imported device contacts still override it and remain local-only.
 - `contacts.html` is now populated with editable public contacts from official India/Kerala sources.
 - Browser/PWA background execution is controlled by iOS/browser; the app therefore also refreshes whenever it is opened or brought back to the foreground.
+
+
+## Contact master files
+- `contacts.html` contains all 37 public contacts and is editable.
+- `public-contacts.js` contains the same 37 public contacts and is used by the app so Report to is populated on first opening.
+- Imported device contacts remain local to the device and are not written back to GitHub.
+
+
+## V9
+- Report to no longer has an Import Contacts button or device file-import logic.
+- Report to is populated automatically from `public-contacts.js`.
+- `contacts.html` remains the editable master file containing the same 37 public contacts.

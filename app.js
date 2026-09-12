@@ -244,39 +244,9 @@ function renderReport(){
     `<div class="page-bar">
       <button class="back" id="reportBack" type="button" aria-label="Back">‹</button>
       <div class="page-title">Report to</div>
-      <button class="action import-btn" id="importBtn" type="button">⇧ Import Contacts</button>
-      <input id="contactFile" type="file" accept=".html,.htm,.json,application/json,text/html" hidden>
     </div>
-    <div class="stack">${c.filter(x=>x.active!==false).map(contactCard).join("")||'<div class="empty">No contacts available on this device</div>'}</div>`;
+    <div class="stack">${c.filter(x=>x.active!==false).map(contactCard).join("")||'<div class="empty">No contacts available</div>'}</div>`;
   $("#reportBack").onclick=()=>show("home");
-  $("#importBtn").onclick=()=>$("#contactFile").click();
-  $("#contactFile").onchange=async e=>{
-    const f=e.target.files[0];
-    if(!f)return;
-    const text=await f.text();
-    let contacts=[];
-    try{
-      if(f.name.toLowerCase().endsWith(".json")){
-        contacts=JSON.parse(text);
-      }else{
-        const doc=new DOMParser().parseFromString(text,"text/html");
-        doc.querySelectorAll("tbody tr").forEach(tr=>{
-          const v=[...tr.querySelectorAll("td")].map(x=>x.textContent.trim());
-          if(v.length>=8&&v[0])contacts.push({
-            name:v[0],description:v[1],phone:v[2],sms:v[3],
-            whatsapp:v[4],email:v[5],website:v[6],
-            active:v[7].toLowerCase()!=="false"
-          });
-        });
-      }
-    }catch{}
-    if(!Array.isArray(contacts)||!contacts.length){
-      alert("No editable contacts found in this file.");
-      return;
-    }
-    localStorage.setItem("local-alerts-contacts",JSON.stringify(contacts));
-    renderReport();
-  };
 }
 
 function show(p){

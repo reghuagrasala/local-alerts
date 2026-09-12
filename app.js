@@ -217,7 +217,7 @@ function renderAlerts(){
 function deviceContacts(){
   try{
     const saved=JSON.parse(localStorage.getItem("local-alerts-contacts")||"null");
-    if(Array.isArray(saved)) return saved;
+    if(Array.isArray(saved) && saved.length) return saved;
   }catch{}
   return Array.isArray(window.PUBLIC_CONTACTS)?window.PUBLIC_CONTACTS:[];
 }

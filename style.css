@@ -9,7 +9,7 @@ h1{margin:2px 0;font-size:24px;line-height:1.05}#location{margin:0;font-size:12p
 .location-btn{position:absolute;right:14px;top:calc(10px + env(safe-area-inset-top));width:42px;height:42px;border:1px solid #b9d0e8;border-radius:13px;background:#e9f3ff;color:#0866d8;font-size:24px}
 .status-buttons{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 14px 6px;background:linear-gradient(90deg,#eef6ff,#f9fcff,#e9f3ff)}
 .status{border:1px solid;border-radius:12px;padding:8px;font-size:12px;font-weight:800}
-.gps-off{background:linear-gradient(135deg,#fff3f3,#ffe1e1);border-color:#efb1b1;color:#b42318}.data-off{background:linear-gradient(135deg,#fff8e8,#ffe8b3);border-color:#e5c36a;color:#8a5a00}
+.gps-weak{background:linear-gradient(135deg,#fff8e8,#ffe8b3);border-color:#e5c36a;color:#8a5a00}.gps-off{background:linear-gradient(135deg,#fff3f3,#ffe1e1);border-color:#efb1b1;color:#b42318}.data-weak{background:linear-gradient(135deg,#fff8e8,#ffe8b3);border-color:#e5c36a;color:#8a5a00}.data-off{background:linear-gradient(135deg,#fff8e8,#ffe8b3);border-color:#e5c36a;color:#8a5a00}
 .gps-on{background:linear-gradient(135deg,#eafaf0,#c9f2d8);border-color:#8fd0a7;color:#14723a}.data-on{background:linear-gradient(135deg,#e9f3ff,#cde4ff);border-color:#8bbbe9;color:#075aa9}
 .category-strip{flex:none;display:flex;gap:8px;overflow-x:auto;padding:7px 14px 10px;background:linear-gradient(90deg,#dbeaff,#f6fbff,#dbeaff);scrollbar-width:none}
 .category-strip::-webkit-scrollbar{display:none}

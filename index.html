@@ -1,13 +1,46 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b63ce"><meta name="description" content="Independent public-help resource for local alerts and reporting contacts.">
-<meta property="og:title" content="Local Alerts"><meta property="og:description" content="Independent public-help resource for local alerts and reporting contacts."><meta property="og:image" content="share.png">
-<link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><link rel="stylesheet" href="style.css">
-<title>Local Alerts</title></head>
-<body><main class="app">
-<header class="topbar"><button id="backBtn" class="back" hidden>‹</button><div class="title-wrap"><div class="eyebrow">PUBLIC SAFETY HELPER</div><h1>Local Alerts</h1><p id="location">Location not available</p><p id="datetime" class="datetime">--</p></div><button id="locBtn" class="location-btn" aria-label="GPS location">⌖</button></header>
-<section class="status-buttons"><button id="gpsStatus" class="status gps-off">GPS Off</button><button id="dataStatus" class="status data-off">Data Off</button></section>
-<section id="categoryStrip" class="category-strip"></section><section id="content" class="content-scroll"></section>
-<nav class="bottom-nav"><button class="nav active" data-page="home">⌂<span>Home</span></button><button class="nav" data-page="alerts">⚠<span>Alerts</span></button><button class="nav" data-page="report">☎<span>Report to</span></button></nav>
-</main><script src="data.js"></script><script src="app.js"></script></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b63ce">
+<meta name="description" content="Independent public-help resource for local alerts and reporting contacts.">
+<meta property="og:title" content="Local Alerts">
+<meta property="og:description" content="Independent public-help resource for local alerts and reporting contacts.">
+<meta property="og:image" content="share.png">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>Local Alerts</title>
+</head>
+<body>
+<main class="app">
+  <header id="homeHeader" class="topbar">
+    <div class="title-wrap">
+      <div class="eyebrow">PUBLIC SAFETY HELPER</div>
+      <h1>Local Alerts</h1>
+      <p id="location">Location not available</p>
+      <p id="datetime" class="datetime">--</p>
+    </div>
+    <button id="locBtn" class="location-btn" aria-label="Get GPS location">⌖</button>
+  </header>
+
+  <section id="statusButtons" class="status-buttons">
+    <button id="gpsStatus" class="status gps-off">GPS Off</button>
+    <button id="dataStatus" class="status data-off">Data Off</button>
+  </section>
+
+  <section id="categoryStrip" class="category-strip"></section>
+  <section id="content" class="content-scroll"></section>
+
+  <nav class="bottom-nav">
+    <button class="nav active" data-page="home">⌂<span>Home</span></button>
+    <button class="nav" data-page="alerts">⚠<span>Alerts</span></button>
+    <button class="nav" data-page="report">☎<span>Report to</span></button>
+  </nav>
+</main>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

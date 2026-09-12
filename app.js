@@ -1,42 +1,11 @@
-const $=s=>document.querySelector(s);
-let page="home", selected="all";
-
-function tel(v){return "tel:"+v.replace(/[^\d+]/g,"")}
-function wa(v){return "https://wa.me/"+v.replace(/\D/g,"")}
-
-function categories(target){
-  target.innerHTML='<button class="cat active" data-cat="all">All</button>'+ALERT_CATEGORIES.map(c=>`<button class="cat" data-cat="${c.id}">${c.name}</button>`).join("");
-  target.querySelectorAll(".cat").forEach(b=>b.onclick=()=>{selected=b.dataset.cat;target.querySelectorAll(".cat").forEach(x=>x.classList.toggle("active",x===b));renderAlerts()});
-}
-function alertCard(a,inactive=false){
-  return `<article class="card ${inactive?"inactive":""}"><div class="card-title">${a.title}</div><div class="meta"><span class="badge">${a.category}</span>${a.detail}</div></article>`;
-}
-function renderAlerts(){
-  const filtered=selected==="all"?ALERTS:ALERTS.filter(a=>a.category===selected);
-  $("#activeAlerts").innerHTML=filtered.filter(a=>a.status==="active").map(a=>alertCard(a)).join("")||'<div class="empty">No active alerts</div>';
-  $("#upcomingAlerts").innerHTML=filtered.filter(a=>a.status==="upcoming").map(a=>alertCard(a)).join("")||'<div class="empty">No upcoming alerts</div>';
-  $("#inactiveAlerts").innerHTML=filtered.filter(a=>a.status==="inactive").map(a=>alertCard(a,true)).join("")||'<div class="empty">No inactive alerts</div>';
-}
-function contactCard(c){
-  let href=c.type==="WhatsApp"?wa(c.value):tel(c.value);
-  return `<article class="card"><div class="card-title">${c.title}</div><div class="meta">${c.detail}</div><div class="actions"><a class="action" href="${href}">${c.type}</a><span class="action">${c.value}</span></div></article>`;
-}
-function showReport(){
-  $(".content-scroll").innerHTML=`<h2>Report to</h2><div class="actions" style="margin:0 0 10px"><button class="action" id="importBtn">⇧ Import Contacts</button></div><div class="stack">${CONTACTS.filter(c=>c.active).map(contactCard).join("")}</div><h2 class="muted-heading">Inactive</h2><div class="stack">${CONTACTS.filter(c=>!c.active).map(c=>`<article class="card inactive"><div class="card-title">${c.title}</div><div class="meta">${c.detail}</div></article>`).join("")||'<div class="empty">No inactive contacts</div>'}</div>`;
-  $("#importBtn").onclick=()=>alert("Prototype: contact import will be enabled in the next version.");
-}
-function showHome(){
-  $(".content-scroll").innerHTML=`<h2>Active alerts</h2><div id="activeAlerts" class="stack"></div><h2>Upcoming / tomorrow</h2><div id="upcomingAlerts" class="stack"></div><h2 class="muted-heading">Inactive</h2><div id="inactiveAlerts" class="stack"></div>`;
-  renderAlerts();
-}
-function showPage(p){
-  page=p; selected="all";
-  $(".nav.active")?.classList.remove("active"); document.querySelector(`.nav[data-page="${p}"]`).classList.add("active");
-  $(".category-strip").innerHTML="";
-  if(p==="report") showReport(); else {categories($("#homeCategories"));showHome()}
-  $(".content-scroll").scrollTop=0;
-}
-document.querySelectorAll(".nav").forEach(n=>n.onclick=()=>showPage(n.dataset.page));
-$("#locBtn").onclick=()=>{if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos=>{$("#location").textContent="Location available on device";},()=>alert("Location permission was not granted."));};
-$("#updated").textContent=new Date().toLocaleDateString();
-categories($("#homeCategories")); renderAlerts();
+let page="home",selected="all";const $=s=>document.querySelector(s);const tel=v=>"tel:"+String(v).replace(/[^\d+]/g,"");const sms=v=>"sms:"+String(v).replace(/[^\d+]/g,"");const wa=v=>"https://wa.me/"+String(v).replace(/\D/g,"");
+function categories(){let s=$("#categoryStrip");s.innerHTML='<button class="cat active" data-cat="all">All</button>'+ALERT_CATEGORIES.map(c=>`<button class="cat" data-cat="${c.id}">${c.name}</button>`).join("");s.querySelectorAll(".cat").forEach(b=>b.onclick=()=>{selected=b.dataset.cat;s.querySelectorAll(".cat").forEach(x=>x.classList.toggle("active",x===b));renderPage()})}
+function ac(a,inactive=false){return `<article class="card ${inactive?"inactive":""}"><div class="card-title">${a.title}</div><div class="meta"><span class="badge">${a.category}</span>${a.detail}</div></article>`}
+function renderAlerts(){let l=selected==="all"?ALERTS:ALERTS.filter(a=>a.category===selected);$("#content").innerHTML=`<h2>Active Alerts</h2><div class="stack">${l.filter(a=>a.status==="active").map(ac).join("")||'<div class="empty">No active alerts</div>'}</div><h2>Daily Alerts</h2><div class="stack">${l.filter(a=>a.status==="upcoming").map(ac).join("")||'<div class="empty">No daily alerts</div>'}</div><h2 class="muted-heading">Inactive</h2><div class="stack">${l.filter(a=>a.status==="inactive").map(a=>ac(a,true)).join("")||'<div class="empty">No inactive alerts</div>'}</div>`}
+function deviceContacts(){try{return JSON.parse(localStorage.getItem("local-alerts-contacts")||"[]")}catch{return[]}}
+function cc(c){let b=[];if(c.phone)b.push(`<a class="action" href="${tel(c.phone)}">☎ Call</a>`);if(c.sms)b.push(`<a class="action" href="${sms(c.sms)}">✉ SMS</a>`);if(c.whatsapp)b.push(`<a class="action" target="_blank" rel="noopener" href="${wa(c.whatsapp)}">💬 WhatsApp</a>`);if(c.email)b.push(`<a class="action" href="mailto:${c.email}">✉ Email</a>`);if(c.website)b.push(`<a class="action" target="_blank" rel="noopener" href="${c.website}">🌐 Website</a>`);return `<article class="card"><div class="card-title">${c.name}</div><div class="meta">${c.description||""}</div><div class="actions">${b.join("")||'<span class="meta">No contact method available</span>'}</div></article>`}
+function report(){let c=deviceContacts();$("#content").innerHTML=`<h2>Report to</h2><div class="actions" style="margin:0 0 10px"><button class="action" id="importBtn">⇧ Import Contacts</button></div><div class="stack">${c.filter(x=>x.active!==false).map(cc).join("")||'<div class="empty">No contacts stored on this device.</div>'}</div><h2 class="muted-heading">Inactive</h2><div class="stack">${c.filter(x=>x.active===false).map(x=>`<article class="card inactive"><div class="card-title">${x.name}</div><div class="meta">${x.description||""}</div></article>`).join("")||'<div class="empty">No inactive contacts</div>'}</div>`;$("#importBtn").onclick=()=>alert("Contact data is stored on this device only.")}
+function renderPage(){$("#content").scrollTop=0;if(page==="report"){$("#categoryStrip").innerHTML="";report()}else{categories();renderAlerts()}}
+document.querySelectorAll(".nav").forEach(n=>n.onclick=()=>{page=n.dataset.page;document.querySelectorAll(".nav").forEach(x=>x.classList.toggle("active",x===n));selected="all";renderPage()});
+async function locate(){let g=$("#gpsStatus");g.textContent="GPS: Getting…";if(!navigator.geolocation){g.textContent="GPS Off";return}navigator.geolocation.getCurrentPosition(async p=>{g.className="status gps-on";g.textContent="GPS On";$("#location").textContent="Getting full local address…";try{let u=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.coords.latitude}&lon=${p.coords.longitude}&zoom=18&addressdetails=1`;let r=await fetch(u,{headers:{Accept:"application/json"}});let d=await r.json();$("#location").textContent=d.display_name||"Address unavailable"}catch{$("#location").textContent=`GPS: ${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`}},()=>{g.className="status gps-off";g.textContent="GPS Off";$("#location").textContent="Location permission not granted"},{enableHighAccuracy:true,timeout:12000,maximumAge:60000})}
+$("#locBtn").onclick=locate;function net(){let d=$("#dataStatus");d.className=navigator.onLine?"status data-on":"status data-off";d.textContent=navigator.onLine?"Data On":"Data Off"}window.addEventListener("online",net);window.addEventListener("offline",net);net();if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));categories();renderAlerts();

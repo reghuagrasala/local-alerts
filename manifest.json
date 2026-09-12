@@ -1,9 +1,1 @@
-{
-  "name":"Local Alerts",
-  "short_name":"Local Alerts",
-  "start_url":".",
-  "display":"standalone",
-  "background_color":"#f8fafc",
-  "theme_color":"#111827",
-  "description":"Independent public-help directory for local alerts and reporting contacts."
-}
+{"name":"Local Alerts","short_name":"Local Alerts","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#f7faff","theme_color":"#0b63ce","description":"Independent public-help resource for local alerts and reporting contacts.","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

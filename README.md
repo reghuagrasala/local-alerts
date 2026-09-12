@@ -1,4 +1,4 @@
-# Local Alerts V7
+# Local Alerts V8
 
 - Current KSDMA/IMD-derived sample alerts are included for interface verification.
 - User contacts are not stored in GitHub.
@@ -18,3 +18,14 @@
 - Data Off prevents location/network operations controlled by the app.
 - GPS accuracy is displayed; approximate/low-accuracy positions are not presented as precise.
 - Service-worker cache is versioned to V7 and uses network-first fetching so updated deployments are not trapped on an old cached V6 app.
+
+
+## V8 additions
+- Hourly live refresh while the app is running, plus refresh on app resume/visibility.
+- Live earthquake data from the USGS real-time GeoJSON feed for the India region.
+- GDACS orange/red earthquake, cyclone and flood events are attempted on each refresh when the browser permits the request.
+- Official source links for KSDMA, IMD Kerala, INCOIS/KSDMA high-wave information, USGS, GDACS and Open-Meteo.
+- Alerts page remains internally scrollable as the list grows.
+- Public emergency/contact directory is available immediately in Report to; imported device contacts still override it and remain local-only.
+- `contacts.html` is now populated with editable public contacts from official India/Kerala sources.
+- Browser/PWA background execution is controlled by iOS/browser; the app therefore also refreshes whenever it is opened or brought back to the foreground.

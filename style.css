@@ -24,3 +24,5 @@ h1{margin:2px 0;font-size:24px;line-height:1.05}#location{margin:0;font-size:12p
 .empty{padding:18px;text-align:center;color:#7f91a3;background:#ffffffb8;border-radius:14px;border:1px dashed #b9c9d9}
 .bottom-nav{flex:none;height:70px;padding-bottom:env(safe-area-inset-bottom);background:linear-gradient(180deg,#fff,#e6f1ff);border-top:1px solid #c9d9e9;display:grid;grid-template-columns:repeat(3,1fr)}
 .nav{border:0;background:transparent;color:#60758b;font-size:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.nav span{font-size:10px}.nav.active{color:#075dbb;font-weight:800}
+
+.official-sources{margin:0 0 10px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.official-sources .action{flex:none}.content-scroll{scrollbar-width:auto}

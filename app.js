@@ -34,6 +34,13 @@ function toggleData(){
     $("#location").textContent=gpsAllowed?"Data access off":"Location access off";
   }
   privacyButtons();
+  if(dataAllowed){
+    checkData();
+    startHourlyRefresh();
+  }else if(liveRefreshTimer){
+    clearInterval(liveRefreshTimer);
+    liveRefreshTimer=null;
+  }
 }
 
 function nowText(){
@@ -79,6 +86,109 @@ function sortedAlerts(){
     .slice().sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0));
 }
 
+const OFFICIAL_SOURCES=[
+  {name:"KSDMA Warnings",url:"https://sdma.kerala.gov.in/?Itemid=151&id=72&option=com_content&view=article"},
+  {name:"IMD Kerala Warnings",url:"https://mausam.imd.gov.in/imd_latest/contents/subdivisionwise-warning_mc.php?id=4"},
+  {name:"KSDMA Weather",url:"https://sdma.kerala.gov.in/weather/"},
+  {name:"INCOIS / High Waves",url:"https://sdma.kerala.gov.in/highwave/"},
+  {name:"USGS Earthquakes",url:"https://earthquake.usgs.gov/earthquakes/feed/"},
+  {name:"GDACS Disasters",url:"https://www.gdacs.org/"},
+  {name:"Open-Meteo Weather",url:"https://open-meteo.com/"},
+];
+
+let liveRefreshTimer=null;
+let liveRefreshInProgress=false;
+
+function saveLiveAlerts(extra){
+  const base=Array.isArray(ALERTS)?ALERTS:[];
+  const staticAlerts=base.filter(a=>!a.live);
+  const merged=[...staticAlerts,...extra];
+  ALERTS.splice(0,ALERTS.length,...merged);
+}
+
+async function fetchLiveEarthquakes(){
+  const url="https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson";
+  const r=await fetch(url,{cache:"no-store"});
+  if(!r.ok) throw Error("USGS");
+  const j=await r.json();
+  return (j.features||[]).filter(f=>{
+    const c=f.geometry?.coordinates||[];
+    const lon=Number(c[0]),lat=Number(c[1]);
+    return lat>=5 && lat<=38 && lon>=66 && lon<=100;
+  }).slice(0,12).map(f=>{
+    const p=f.properties||{};
+    const mag=Number(p.mag);
+    const t=p.time?new Date(p.time).toISOString():"";
+    return {
+      title:`Earthquake M${Number.isFinite(mag)?mag.toFixed(1):"?"} — ${p.place||"India region"}`,
+      category:"earthquake",
+      status:"active",
+      timestamp:t,
+      detail:`USGS real-time earthquake feed. ${p.place||""}`,
+      source:"USGS",
+      url:p.url||"https://earthquake.usgs.gov/earthquakes/feed/",
+      live:true
+    };
+  });
+}
+
+async function fetchLiveGDACS(){
+  const now=new Date(), from=new Date(now.getTime()-7*86400000);
+  const iso=d=>d.toISOString().slice(0,10);
+  const url=`https://www.gdacs.org/gdacsapi/api/Events/geteventlist/SEARCH?eventlist=EQ;TC;FL&fromdate=${iso(from)}&todate=${iso(now)}&alertlevel=orange;red`;
+  const r=await fetch(url,{cache:"no-store"});
+  if(!r.ok) throw Error("GDACS");
+  const j=await r.json();
+  const list=Array.isArray(j)?j:(j.features||j.items||j.data||[]);
+  return list.slice(0,20).map(e=>{
+    const p=e.properties||e;
+    const type=String(p.eventtype||p.eventType||p.type||"").toUpperCase();
+    const category=type.includes("TC")||type.includes("CYCLONE")?"cyclone":
+                   type.includes("FL")||type.includes("FLOOD")?"flood":"earthquake";
+    const title=p.name||p.eventname||p.eventName||"GDACS disaster alert";
+    const stamp=p.todate||p.fromdate||p.date||p.eventdate||"";
+    return {
+      title,
+      category,
+      status:"active",
+      timestamp:stamp,
+      detail:`GDACS ${p.alertlevel||p.alertLevel||"alert"} event.`,
+      source:"GDACS",
+      url:"https://www.gdacs.org/",
+      live:true
+    };
+  });
+}
+
+async function refreshLiveAlerts(){
+  if(liveRefreshInProgress || !dataAllowed) return;
+  liveRefreshInProgress=true;
+  try{
+    const results=await Promise.allSettled([fetchLiveEarthquakes(),fetchLiveGDACS()]);
+    const extras=[];
+    results.forEach(x=>{if(x.status==="fulfilled")extras.push(...x.value)});
+    if(extras.length){
+      saveLiveAlerts(extras);
+      if(page==="home")renderHome();
+      if(page==="alerts")renderAlerts();
+    }
+    const stamp=new Date().toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+    const d=$("#dataStatus");
+    if(dataAllowed){
+      d.className="status data-on";
+      d.textContent=`Data On · ${stamp}`;
+    }
+  }finally{
+    liveRefreshInProgress=false;
+  }
+}
+
+function startHourlyRefresh(){
+  if(liveRefreshTimer) clearInterval(liveRefreshTimer);
+  liveRefreshTimer=setInterval(refreshLiveAlerts,60*60*1000);
+  refreshLiveAlerts();
+}
+
 function renderHome(){
   page="home";
   $("#categoryStrip").style.display="flex";
@@ -99,12 +209,17 @@ function renderAlerts(){
   categoryStrip();
   $("#content").innerHTML=
     `<div class="page-bar"><button class="back" id="alertsBack" type="button" aria-label="Back">‹</button><div class="page-title">Alerts</div></div>
+     <div class="actions official-sources">${OFFICIAL_SOURCES.map(s=>`<a class="action" target="_blank" rel="noopener noreferrer" href="${s.url}">🌐 ${esc(s.name)}</a>`).join("")}</div>
      <div class="stack">${sortedAlerts().map(a=>alertCard(a,a.status==="inactive")).join("")||'<div class="empty">No alert data available</div>'}</div>`;
   $("#alertsBack").onclick=()=>show("home");
 }
 
 function deviceContacts(){
-  try{return JSON.parse(localStorage.getItem("local-alerts-contacts")||"[]")}catch{return[]}
+  try{
+    const saved=JSON.parse(localStorage.getItem("local-alerts-contacts")||"null");
+    if(Array.isArray(saved)) return saved;
+  }catch{}
+  return Array.isArray(window.PUBLIC_CONTACTS)?window.PUBLIC_CONTACTS:[];
 }
 
 function contactCard(c){
@@ -284,4 +399,13 @@ if("serviceWorker"in navigator){
 
 privacyButtons();
 show("home");
-if(dataAllowed)checkData();
+if(dataAllowed){
+  checkData();
+  startHourlyRefresh();
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible" && dataAllowed) refreshLiveAlerts();
+});
+window.addEventListener("pageshow",()=>{
+  if(dataAllowed) refreshLiveAlerts();
+});

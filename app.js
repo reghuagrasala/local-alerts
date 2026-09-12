@@ -1,8 +1,12 @@
-let page="home",selected="all";
+let page="home",selected="all",gpsAllowed=localStorage.getItem("local-alerts-gps")!=="off",dataAllowed=localStorage.getItem("local-alerts-data")!=="off";
 const $=s=>document.querySelector(s);
 const tel=v=>"tel:"+String(v).replace(/[^\d+]/g,"");
 const sms=v=>"sms:"+String(v).replace(/[^\d+]/g,"");
 const wa=v=>"https://wa.me/"+String(v).replace(/\D/g,"");
+function privacyButtons(){const g=$("#gpsStatus"),d=$("#dataStatus");g.className="status "+(gpsAllowed?"gps-on":"gps-off");g.textContent=gpsAllowed?"GPS On":"GPS Off";d.className="status "+(dataAllowed?"data-on":"data-off");d.textContent=dataAllowed?"Data On":"Data Off"}
+function toggleGPS(){gpsAllowed=!gpsAllowed;localStorage.setItem("local-alerts-gps",gpsAllowed?"on":"off");if(!gpsAllowed){$("#location").textContent="Location access off";}privacyButtons()}
+function toggleData(){dataAllowed=!dataAllowed;localStorage.setItem("local-alerts-data",dataAllowed?"on":"off");privacyButtons()}
+
 
 function nowText(){const d=new Date();$("#datetime").textContent=d.toLocaleDateString(undefined,{weekday:"short",day:"2-digit",month:"short",year:"numeric"})+" · "+d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
 setInterval(nowText,1000);nowText();
@@ -29,7 +33,7 @@ function renderAlerts(){
  $("#categoryStrip").style.display="flex";categoryStrip();
  $("#content").innerHTML=`<div class="page-bar"><button class="back" id="alertsBack">‹</button><div class="page-title">Alerts</div></div>
  <div class="stack">${sortedAlerts().map(a=>alertCard(a,a.status==="inactive")).join("")||'<div class="empty">No alert data available</div>'}</div>`;
- $("#alertsBack").onclick=()=>show("home");
+ $("#alertsBack").onclick=()=>privacyButtons();show("home");
 }
 function deviceContacts(){try{return JSON.parse(localStorage.getItem("local-alerts-contacts")||"[]")}catch{return[]}}
 function contactCard(c){
@@ -37,13 +41,12 @@ function contactCard(c){
  return `<article class="card"><div class="card-title">${c.name}</div><div class="meta">${c.description||""}</div><div class="actions">${b.join("")||'<span class="meta">No contact method available</span>'}</div></article>`;
 }
 function renderReport(){
- $("#categoryStrip").style.display="none";
- const c=deviceContacts();
- $("#content").innerHTML=`<div class="page-bar"><button class="back" id="reportBack">‹</button><div class="page-title">Report to</div><button class="action import-btn" id="importBtn">⇧ Import Contacts</button></div>
- <div class="stack">${c.filter(x=>x.active!==false).map(contactCard).join("")||'<div class="empty">No contacts available on this device</div>'}</div>
- <h2 class="muted-heading">Inactive</h2><div class="stack">${c.filter(x=>x.active===false).map(contactCard).join("")||'<div class="empty">No inactive contacts</div>'}</div>`;
- $("#reportBack").onclick=()=>show("home");
- $("#importBtn").onclick=()=>alert("Import contacts into this device only. GitHub does not store contact data.");
+ $("#categoryStrip").style.display="none"; const c=deviceContacts();
+ $("#content").innerHTML=`<div class="page-bar"><button class="back" id="reportBack">‹</button><div class="page-title">Report to</div><button class="action import-btn" id="importBtn">⇧ Import Contacts</button><input id="contactFile" type="file" accept=".html,.htm,.json,application/json,text/html" hidden></div>
+ <div class="stack">${c.filter(x=>x.active!==false).map(contactCard).join("")||'<div class="empty">No contacts available on this device</div>'}</div>`;
+ $("#reportBack").onclick=()=>privacyButtons();show("home");
+ $("#importBtn").onclick=()=>$("#contactFile").click();
+ $("#contactFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;const text=await f.text();let contacts=[];try{if(f.name.toLowerCase().endsWith(".json"))contacts=JSON.parse(text);else{const doc=new DOMParser().parseFromString(text,"text/html");doc.querySelectorAll("tbody tr").forEach(tr=>{const v=[...tr.querySelectorAll("td")].map(x=>x.textContent.trim());if(v.length>=8&&v[0])contacts.push({name:v[0],description:v[1],phone:v[2],sms:v[3],whatsapp:v[4],email:v[5],website:v[6],active:v[7].toLowerCase()!=="false"});});}}catch{} if(!Array.isArray(contacts)||!contacts.length){alert("No editable contacts found in this file.");return} localStorage.setItem("local-alerts-contacts",JSON.stringify(contacts));renderReport();};
 }
 function show(p){
  page=p;selected="all";$("#content").scrollTop=0;
@@ -77,7 +80,7 @@ async function checkData(){
  try{const r=await fetch("./data.js",{cache:"no-store"});if(!r.ok)throw Error();d.className="status data-on";d.textContent=navigator.onLine?"Data On":"Data Cached"}
  catch{d.className="status data-off";d.textContent="Data Off"}
 }
-$("#locBtn").onclick=locate;$("#gpsStatus").onclick=locate;$("#dataStatus").onclick=checkData;
+$("#locBtn").onclick=()=>gpsAllowed&&locate();$("#gpsStatus").onclick=toggleGPS;$("#dataStatus").onclick=toggleData;
 window.addEventListener("online",checkData);window.addEventListener("offline",()=>{let d=$("#dataStatus");d.className="status data-off";d.textContent="Data Off"});
 if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
-show("home");
+privacyButtons();show("home");

@@ -1,0 +1,9 @@
+{
+  "name":"Local Alerts",
+  "short_name":"Local Alerts",
+  "start_url":".",
+  "display":"standalone",
+  "background_color":"#f8fafc",
+  "theme_color":"#111827",
+  "description":"Independent public-help directory for local alerts and reporting contacts."
+}

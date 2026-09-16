@@ -1,5 +1,5 @@
-const CACHE="local-alerts-v11";
-const CORE=["./","./index.html","./style.css","./app.js","./sachet.js","./data.js","./manifest.json","./icon-192.png","./icon-512.png","./share.png","./contacts.html","./public-contacts.js"];
+const CACHE="local-alerts-v12";
+const CORE=["./","./index.html","./style.css","./app.js","./sachet.js","./gps-fix.js","./data.js","./manifest.json","./icon-192.png","./icon-512.png","./share.png","./contacts.html","./public-contacts.js"];
 
 self.addEventListener("install",e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));

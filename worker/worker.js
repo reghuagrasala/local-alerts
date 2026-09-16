@@ -1,42 +1,146 @@
-// Cloudflare Worker starter for an optional official-alert aggregator.
-// Keep provider credentials and private feed URLs in Worker secrets.
-// Do not invent or scrape undocumented endpoints.
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,OPTIONS","Access-Control-Allow-Headers":"Content-Type","Cache-Control":"public, max-age=300"};
-const json=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
+// Local Alerts official-alert Worker
+// NDMA SACHET publishes India CAP alerts through its RSS service.
+// Kerala RSS endpoint is independently listed in the WMO Register of Alerting Authorities.
+// The Worker keeps the upstream request server-side and caches the RSS response by ETag.
 
-function relevant(item,lat,lng){
-  const ilat=Number(item.lat), ilng=Number(item.lon ?? item.lng);
-  const radius=Number(item.radiusKm);
-  if(Number.isFinite(ilat)&&Number.isFinite(ilng)&&Number.isFinite(radius)){
-    const R=6371,dLat=(ilat-lat)*Math.PI/180,dLon=(ilng-lng)*Math.PI/180;
-    const a=Math.sin(dLat/2)**2+Math.cos(lat*Math.PI/180)*Math.cos(ilat*Math.PI/180)*Math.sin(dLon/2)**2;
-    const km=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-    return km<=radius;
+const SACHET_RSS_URL = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_kerala.xml";
+const CACHE_KEY = "https://local-alerts-official-feed.internal/sachet-kerala-rss";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Cache-Control": "public, max-age=300"
+};
+
+const json = (body, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...cors, "Content-Type": "application/json; charset=utf-8" }
+});
+
+function decodeXml(s = "") {
+  return s
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+}
+
+function textOnly(s = "") {
+  return decodeXml(s).replace(/<br\s*\/?>/gi, " ").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function tag(block, name) {
+  const m = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"));
+  return m ? textOnly(m[1]) : "";
+}
+
+function categoryFor(title, description) {
+  const s = `${title} ${description}`.toLowerCase();
+  if (/cyclone|storm|depression|low pressure/.test(s)) return "Cyclone";
+  if (/earthquake|seismic/.test(s)) return "Earthquake";
+  if (/landslide|mudslide/.test(s)) return "Landslide";
+  if (/flood|waterlogging/.test(s)) return "Flood";
+  if (/lightning|thunderstorm|thunder storm/.test(s)) return "Lightning";
+  if (/heavy rain|rainfall|rain warning|rain/.test(s)) return "Rain";
+  if (/high wave|highwave|coastal|rough sea|swell|kallakkadal/.test(s)) return "Coastal";
+  if (/heat wave|heatwave|temperature|hot weather/.test(s)) return "Heat";
+  if (/fire|forest fire/.test(s)) return "Fire";
+  if (/wind|squall|gust/.test(s)) return "Public Notices";
+  return "Public Notices";
+}
+
+function parseRss(xml) {
+  const blocks = xml.match(/<item(?:\s[^>]*)?>[\s\S]*?<\/item>/gi) || [];
+  const items = [];
+
+  for (const block of blocks) {
+    const title = tag(block, "title");
+    const description = tag(block, "description");
+    const link = tag(block, "link");
+    const guid = tag(block, "guid") || link || title;
+    const pubDate = tag(block, "pubDate");
+    if (!title && !description) continue;
+
+    const parsed = Date.parse(pubDate);
+    items.push({
+      id: `sachet-${guid}`,
+      title: title || "NDMA SACHET alert",
+      description,
+      category: categoryFor(title, description),
+      source: "NDMA SACHET",
+      scope: "Kerala",
+      link,
+      pubDate,
+      timestamp: Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString()
+    });
   }
-  return true;
+
+  return items.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 30);
+}
+
+async function fetchCachedRss() {
+  const cache = caches.default;
+  const key = new Request(CACHE_KEY);
+  const cached = await cache.match(key);
+  const headers = {
+    "Accept": "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+    "User-Agent": "Local-Alerts/1.0 (SACHET RSS consumer)"
+  };
+
+  const etag = cached?.headers.get("ETag");
+  if (etag) headers["If-None-Match"] = etag;
+
+  const r = await fetch(SACHET_RSS_URL, { headers });
+
+  if (r.status === 304 && cached) {
+    return { xml: await cached.text(), fromCache: true };
+  }
+  if (!r.ok) throw new Error(`SACHET HTTP ${r.status}`);
+
+  const xml = await r.text();
+  const stored = new Headers({
+    "Content-Type": "application/xml; charset=utf-8",
+    "Cache-Control": "public, max-age=300"
+  });
+  const newEtag = r.headers.get("ETag");
+  if (newEtag) stored.set("ETag", newEtag);
+  await cache.put(key, new Response(xml, { status: 200, headers: stored }));
+  return { xml, fromCache: false };
 }
 
 export default {
-  async fetch(request,env){
-    if(request.method==='OPTIONS') return new Response(null,{status:204,headers:cors});
-    const u=new URL(request.url);
-    if(u.pathname!=='/india-alerts') return json({error:'Use /india-alerts'},404);
-    const lat=Number(u.searchParams.get('lat')),lng=Number(u.searchParams.get('lng'));
-    if(!Number.isFinite(lat)||!Number.isFinite(lng)) return json({error:'lat and lng are required'},400);
+  async fetch(request) {
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
-    // Configure only a documented/permitted CAP/JSON source.
-    const source=env.SACHET_CAP_URL;
-    if(!source) return json({items:[],configured:false,source:'SACHET'});
-    try{
-      const r=await fetch(source,{headers:{Accept:'application/json, application/xml, text/xml'}});
-      if(!r.ok) return json({items:[],configured:true,error:`Provider HTTP ${r.status}`},502);
-      const text=await r.text();
-      // This starter intentionally accepts normalized JSON only. Add a CAP parser
-      // after confirming the exact feed format and terms of the chosen source.
-      let data;
-      try{data=JSON.parse(text);}catch{return json({items:[],configured:true,error:'Configured source is not normalized JSON; add a permitted CAP parser.'},502);}
-      const items=Array.isArray(data)?data:(data.items||data.alerts||[]);
-      return json({items:items.filter(x=>relevant(x,lat,lng)).slice(0,20),configured:true,source:'SACHET'});
-    }catch(e){return json({items:[],configured:true,error:'Provider request failed'},502);}
+    const u = new URL(request.url);
+    if (u.pathname !== "/india-alerts") return json({ error: "Use /india-alerts" }, 404);
+
+    const lat = Number(u.searchParams.get("lat"));
+    const lng = Number(u.searchParams.get("lng"));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return json({ error: "lat and lng are required" }, 400);
+
+    try {
+      const feed = await fetchCachedRss();
+      const items = parseRss(feed.xml);
+      return json({
+        items,
+        configured: true,
+        source: "NDMA SACHET Kerala RSS",
+        sourceUrl: SACHET_RSS_URL,
+        fetchedAt: new Date().toISOString(),
+        cache: feed.fromCache ? "etag-304" : "fresh",
+        location: { lat, lng }
+      });
+    } catch (e) {
+      return json({
+        items: [],
+        configured: true,
+        source: "NDMA SACHET Kerala RSS",
+        error: "Official SACHET Kerala RSS request failed"
+      }, 502);
+    }
   }
 };

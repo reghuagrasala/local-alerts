@@ -108,7 +108,7 @@ const TRAVEL_CONFIG={
   refreshIntervalMs:60*60*1000,
   moveThresholdM:5000,
   poiRadiusM:3500,
-  officialAlertsEndpoint:"" // Optional Cloudflare Worker endpoint; keep provider keys server-side.
+  officialAlertsEndpoint:"https://local-alerts-official-feed.hrcvb7p7r5.workers.dev/india-alerts"
 };
 let watchId=null;
 let lastAreaRefresh=0;

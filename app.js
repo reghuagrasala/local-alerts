@@ -20,11 +20,13 @@ function toggleGPS(){
   gpsAllowed=!gpsAllowed;
   localStorage.setItem("local-alerts-gps",gpsAllowed?"on":"off");
   if(!gpsAllowed){
+    stopLocationWatch();
     $("#location").textContent="Location access off";
   }else{
     $("#location").textContent="Location not available";
   }
   privacyButtons();
+  if(gpsAllowed&&dataAllowed)startLocationWatch();
 }
 
 function toggleData(){
@@ -40,7 +42,9 @@ function toggleData(){
   }else if(liveRefreshTimer){
     clearInterval(liveRefreshTimer);
     liveRefreshTimer=null;
+    stopLocationWatch();
   }
+  if(dataAllowed&&gpsAllowed)startLocationWatch();
 }
 
 function nowText(){
@@ -98,6 +102,84 @@ const OFFICIAL_SOURCES=[
 
 let liveRefreshTimer=null;
 let liveRefreshInProgress=false;
+
+// Travel Companion features integrated from the supplied project.
+const TRAVEL_CONFIG={
+  refreshIntervalMs:60*60*1000,
+  moveThresholdM:5000,
+  poiRadiusM:3500,
+  officialAlertsEndpoint:"" // Optional Cloudflare Worker endpoint; keep provider keys server-side.
+};
+let watchId=null;
+let lastAreaRefresh=0;
+let lastAreaLocation=null;
+let currentCoords=null;
+
+function distanceMeters(lat1,lon1,lat2,lon2){
+  const R=6371000,toRad=v=>v*Math.PI/180,dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function weatherText(code){return ({0:"Clear sky",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Rime fog",51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Rain showers",81:"Rain showers",82:"Violent showers",95:"Thunderstorm",96:"Thunderstorm with hail",99:"Thunderstorm with heavy hail"})[code]||`Weather code ${code}`;}
+function setTravelBox(id,html){const el=$(id);if(el)el.innerHTML=html;}
+async function fetchWeather(lat,lon){
+  const fields="temperature_2m,apparent_temperature,precipitation,precipitation_probability,weather_code,wind_speed_10m";
+  const u=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=${fields}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&forecast_days=3&timezone=auto`;
+  const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw Error("Weather request failed");return r.json();
+}
+function renderWeather(data){
+  if(!data?.current||!data?.hourly){setTravelBox("weatherBox","Weather data could not be loaded.");return;}
+  const c=data.current,now=Date.now();let i=data.hourly.time.findIndex(t=>new Date(t).getTime()>=now);if(i<0)i=0;
+  const hours=data.hourly.time.slice(i,i+6).map((t,j)=>{const n=i+j;return `<li><strong>${new Date(t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</strong>: ${data.hourly.temperature_2m[n]}°C, rain ${data.hourly.precipitation_probability[n]??"–"}%, ${weatherText(data.hourly.weather_code[n])}</li>`}).join("");
+  const caution=data.hourly.precipitation_probability.slice(i,i+6).some(x=>x>=70)||[65,82,95,96,99].includes(c.weather_code);
+  setTravelBox("weatherBox",`<p><strong>Now:</strong> ${c.temperature_2m}°C (feels ${c.apparent_temperature}°C), ${weatherText(c.weather_code)}, wind ${c.wind_speed_10m} km/h.</p>${caution?'<p class="warning">Travel caution: rain or thunderstorms may affect local movement. Check official alerts before travelling.</p>':""}<p><strong>Next 6 hours</strong></p><ul>${hours}</ul>`);
+}
+async function fetchPOIs(lat,lon){
+  const q=`[out:json][timeout:20];(nwr["amenity"~"^(hospital|clinic|police|pharmacy|atm|fuel)$"](around:${TRAVEL_CONFIG.poiRadiusM},${lat},${lon});nwr["railway"="station"](around:${TRAVEL_CONFIG.poiRadiusM},${lat},${lon});nwr["amenity"="bus_station"](around:${TRAVEL_CONFIG.poiRadiusM},${lat},${lon}););out center tags;`;
+  const r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:q});if(!r.ok)throw Error("POI request failed");const j=await r.json();return j.elements||[];
+}
+function poiCoords(p){return {lat:p.lat??p.center?.lat,lng:p.lon??p.center?.lon};}
+function renderPOIs(pois){
+  const g={hospital:[],police:[],pharmacy:[],atm:[],fuel:[],station:[],bus:[]};
+  pois.forEach(p=>{const t=p.tags||{},c=poiCoords(p);if(!Number.isFinite(c.lat)||!Number.isFinite(c.lng))return;let k="";if(t.amenity==="hospital"||t.amenity==="clinic")k="hospital";else if(t.amenity==="police")k="police";else if(t.amenity==="pharmacy")k="pharmacy";else if(t.amenity==="atm")k="atm";else if(t.amenity==="fuel")k="fuel";else if(t.railway==="station")k="station";else if(t.amenity==="bus_station")k="bus";if(k&&g[k].length<4)g[k].push({name:t.name||"Unnamed place",c});});
+  const labels={hospital:"Hospitals / clinics",police:"Police",pharmacy:"Pharmacies",atm:"ATMs",fuel:"Fuel",station:"Rail stations",bus:"Bus stations"};
+  let html="";Object.entries(g).forEach(([k,items])=>{if(items.length)html+=`<p><strong>${labels[k]}</strong></p><ul>${items.map(x=>`<li><a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q=${x.c.lat},${x.c.lng}">${esc(x.name)}</a></li>`).join("")}</ul>`;});
+  setTravelBox("poiBox",html||"No mapped essential places found within approximately 3.5 km.");
+  setTravelBox("supportBox",`<p><strong>Nearby mapped support</strong></p><p>${g.police.length} police · ${g.hospital.length} hospital/clinic · ${g.pharmacy.length} pharmacy · ${g.atm.length} ATM · ${g.fuel.length} fuel · ${g.station.length} rail · ${g.bus.length} bus.</p><p class="muted">This is a factual nearby-service count from OpenStreetMap. It is not a crime, risk, or official safety score.</p>`);
+}
+async function fetchOfficialAlerts(lat,lon){
+  if(!TRAVEL_CONFIG.officialAlertsEndpoint)return null;
+  const joiner=TRAVEL_CONFIG.officialAlertsEndpoint.includes("?")?"&":"?";
+  const r=await fetch(`${TRAVEL_CONFIG.officialAlertsEndpoint}${joiner}lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lon)}`,{cache:"no-store"});if(!r.ok)throw Error("Official alerts request failed");return r.json();
+}
+function renderOfficialArea(data){
+  if(!data){setTravelBox("officialAreaBox",`No secure official feed is configured in this build. <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/">Open NDMA SACHET</a> for current official geo-targeted warnings.`);return;}
+  const items=Array.isArray(data)?data:(data.items||data.alerts||[]);
+  setTravelBox("officialAreaBox",items.length?`<ul>${items.slice(0,10).map(x=>`<li><strong>${esc(x.title||"Official alert")}</strong>${x.description?`<br><span class="muted">${esc(x.description)}</span>`:""}${x.url?`<br><a target="_blank" rel="noopener noreferrer" href="${esc(x.url)}">Open source</a>`:""}</li>`).join("")}</ul>`:"No current official alerts returned.");
+}
+async function refreshAreaData(lat,lon,manual=false){
+  if(!dataAllowed)return;lastAreaRefresh=Date.now();lastAreaLocation={lat,lon};
+  setTravelBox("areaStatus",manual?"Refreshing nearby travel information…":"Updating nearby travel information…");
+  const results=await Promise.allSettled([fetchWeather(lat,lon),fetchPOIs(lat,lon),fetchOfficialAlerts(lat,lon)]);
+  renderWeather(results[0].status==="fulfilled"?results[0].value:null);
+  renderPOIs(results[1].status==="fulfilled"?results[1].value:[]);
+  renderOfficialArea(results[2].status==="fulfilled"?results[2].value:null);
+  const stamp=new Date().toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+  setTravelBox("areaStatus",`Updated ${stamp}${manual?" · manual refresh":""}. Auto-refreshes hourly or after about 5 km movement.`);
+}
+function maybeRefreshAreaData(lat,lon){
+  const moved=lastAreaLocation?distanceMeters(lat,lon,lastAreaLocation.lat,lastAreaLocation.lng):Infinity;
+  if(!lastAreaLocation||Date.now()-lastAreaRefresh>=TRAVEL_CONFIG.refreshIntervalMs||moved>=TRAVEL_CONFIG.moveThresholdM)refreshAreaData(lat,lon);
+}
+function startLocationWatch(){
+  if(!gpsAllowed||!dataAllowed||!navigator.geolocation)return;
+  if(watchId!==null)navigator.geolocation.clearWatch(watchId);
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    currentCoords={lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy};
+    maybeRefreshAreaData(currentCoords.lat,currentCoords.lon);
+  },()=>{}, {enableHighAccuracy:true,maximumAge:10000,timeout:20000});
+}
+function stopLocationWatch(){if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;}
 
 function saveLiveAlerts(extra){
   const base=Array.isArray(ALERTS)?ALERTS:[];
@@ -200,7 +282,11 @@ function renderHome(){
   $("#content").innerHTML=
     `<h2>Active Alerts</h2><div class="stack">${active.map(a=>alertCard(a)).join("")||'<div class="empty">No active alerts</div>'}</div>
      <h2>Previous Alerts</h2><div class="stack">${previous.map(a=>alertCard(a)).join("")||'<div class="empty">No previous alerts</div>'}</div>
-     <h2 class="muted-heading">Inactive Alerts</h2><div class="stack">${inactive.map(a=>alertCard(a,true)).join("")||'<div class="empty">No inactive alerts</div>'}</div>`;
+     <h2 class="muted-heading">Inactive Alerts</h2><div class="stack">${inactive.map(a=>alertCard(a,true)).join("")||'<div class="empty">No inactive alerts</div>'}</div>
+     <h2>Official travel alerts</h2><article class="card"><div id="officialAreaBox" class="meta">Open SACHET for official India geo-targeted warnings.</div><div class="actions"><a class="action" target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/">🌐 NDMA SACHET</a></div></article>
+     <h2>Weather</h2><article class="card"><div id="weatherBox" class="meta">Tap the GPS button to load local hourly weather.</div></article>
+     <h2>Nearby travel essentials</h2><article class="card"><div id="supportBox" class="meta">Nearby mapped support will appear after location is available.</div><div id="poiBox" class="meta">Hospitals, police, pharmacies, ATMs, fuel, rail and bus locations will appear here.</div></article>
+     <p id="areaStatus" class="muted area-status">Location-aware travel information refreshes hourly or after about 5 km movement.</p>`;
 }
 
 function renderAlerts(){
@@ -271,6 +357,7 @@ document.querySelectorAll(".nav").forEach(n=>{
 
 async function locate(){
   if(!gpsAllowed){
+    stopLocationWatch();
     $("#location").textContent="Location access off";
     privacyButtons();
     return;
@@ -298,6 +385,9 @@ async function locate(){
     g.className="status gps-on";
     g.textContent="GPS On";
     const lat=p.coords.latitude,lon=p.coords.longitude;
+    currentCoords={lat,lon,accuracy:Number(p.coords.accuracy)||0};
+    maybeRefreshAreaData(lat,lon);
+    startLocationWatch();
     const acc=Number(p.coords.accuracy)||0;
     const accuracyText=acc>1000
       ? ` · Approximate accuracy ~${Math.round(acc/1000*10)/10} km`
@@ -372,10 +462,17 @@ show("home");
 if(dataAllowed){
   checkData();
   startHourlyRefresh();
+  if(gpsAllowed)startLocationWatch();
 }
 document.addEventListener("visibilitychange",()=>{
-  if(document.visibilityState==="visible" && dataAllowed) refreshLiveAlerts();
+  if(document.visibilityState==="visible" && dataAllowed){
+    refreshLiveAlerts();
+    if(currentCoords)maybeRefreshAreaData(currentCoords.lat,currentCoords.lon);
+  }
 });
 window.addEventListener("pageshow",()=>{
-  if(dataAllowed) refreshLiveAlerts();
+  if(dataAllowed){
+    refreshLiveAlerts();
+    if(currentCoords)maybeRefreshAreaData(currentCoords.lat,currentCoords.lon);
+  }
 });

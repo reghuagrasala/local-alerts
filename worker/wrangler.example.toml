@@ -1,0 +1,6 @@
+name = "local-alerts-official-feed"
+main = "worker.js"
+compatibility_date = "2026-09-16"
+
+# Set this only to a documented/permitted normalized JSON/CAP source.
+# wrangler secret put SACHET_CAP_URL

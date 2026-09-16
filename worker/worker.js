@@ -1,19 +1,3 @@
-name = "local-alerts-official-feed"
-main = "worker.js"
-compatibility_date = "2026-09-16"
-
-# Set this only to a documented/permitted normalized JSON/CAP source.
-# wrangler secret put SACHET_CAP_URL
-
-# Official alert Worker
-
-Deploy this Worker separately from the Pages/PWA app. Configure `SACHET_CAP_URL` only after confirming a documented/permitted source and its exact format.
-
-The browser should call:
-`https://YOUR-WORKER/india-alerts?lat=...&lng=...`
-
-The Worker returns normalized `{items:[...]}` JSON and keeps provider URLs/credentials out of the browser. The supplied starter deliberately does not claim an undocumented SACHET API endpoint.
-
 // Cloudflare Worker starter for an optional official-alert aggregator.
 // Keep provider credentials and private feed URLs in Worker secrets.
 // Do not invent or scrape undocumented endpoints.

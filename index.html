@@ -16,9 +16,13 @@
 <style>
 .sachet-top{padding:8px 16px 10px;background:rgba(255,255,255,.42);border-top:1px solid rgba(120,160,205,.18);border-bottom:1px solid rgba(120,160,205,.18)}
 .sachet-top-head{font-weight:800;color:#123b69;font-size:15px;margin-bottom:6px}
-.sachet-top-actions{display:flex;gap:8px;overflow:hidden}
-.sachet-top-actions a{flex:1;min-width:0;text-align:center;text-decoration:none;padding:8px 7px;border-radius:12px;background:rgba(225,239,255,.78);border:1px solid rgba(80,145,210,.35);color:#145b9e;font-weight:700;font-size:13px;white-space:nowrap}
+.sachet-top-actions{display:flex;gap:8px;overflow:hidden;margin-top:7px}
+.sachet-top-actions a{flex:1;min-width:0;text-align:center;text-decoration:none;padding:7px 6px;border-radius:11px;background:rgba(225,239,255,.78);border:1px solid rgba(80,145,210,.35);color:#145b9e;font-weight:700;font-size:12px;white-space:nowrap}
 .sachet-top-status{font-size:11px;color:#64748b;margin-top:5px}
+.sachet-top-alerts{font-size:12px;color:#243b53;max-height:88px;overflow:auto;margin-top:6px}
+.sachet-top-alerts ul{margin:4px 0 0;padding-left:18px}
+.sachet-top-alerts li{margin:4px 0}
+.sachet-top-alerts a{color:#145b9e;font-weight:700}
 </style>
 </head>
 <body>
@@ -39,12 +43,13 @@
   </section>
 
   <section id="sachetTop" class="sachet-top">
-    <div class="sachet-top-head">NDMA SACHET</div>
+    <div class="sachet-top-head">NDMA SACHET · CURRENT LOCATION</div>
+    <div id="sachetTopStatus" class="sachet-top-status">Waiting for current GPS location…</div>
+    <div id="sachetTopAlerts" class="sachet-top-alerts">Location-specific official alerts will appear here automatically.</div>
     <div class="sachet-top-actions">
-      <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/">Open SACHET</a>
-      <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/CapFeed">SACHET RSS Feed</a>
+      <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/">Official SACHET</a>
+      <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/CapFeed">SACHET RSS</a>
     </div>
-    <div id="sachetTopStatus" class="sachet-top-status">Official disaster alerts · Kerala feed</div>
   </section>
 
   <section id="categoryStrip" class="category-strip"></section>

@@ -1,0 +1,46 @@
+// Location-aware Travel Companion UI.
+// Uses the device position while Local Alerts has GPS/Data access.
+// Official alerts remain sourced through the server-side SACHET Worker.
+(function(){
+  const WORKER="https://local-alerts-official-feed.hrcvb7p7r5.workers.dev/india-alerts";
+  const NOM="https://nominatim.openstreetmap.org/reverse";
+  const OSM="https://overpass-api.de/api/interpreter";
+  const R=3500, MOVE=5000, HOUR=60*60*1000;
+  let last=null,lastAt=0,busy=false,watch=null;
+  const $=s=>document.querySelector(s);
+  const esc=v=>String(v??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[m]));
+  const dataOn=()=>localStorage.getItem("local-alerts-data")!=="off";
+  const gpsOn=()=>localStorage.getItem("local-alerts-gps")!=="off";
+  const moved=(a,b)=>{if(!a||!b)return Infinity;const rad=Math.PI/180,x=(b.lat-a.lat)*rad,y=(b.lon-a.lon)*rad;const q=Math.sin(x/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(y/2)**2;return 6371000*2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q));};
+  function ensure(){
+    const host=$("#content"); if(!host)return null;
+    let el=$("#travelCompanion");
+    if(!el){el=document.createElement("article");el.id="travelCompanion";el.className="card travel-companion";}
+    if(host.firstElementChild!==el)host.insertBefore(el,host.firstElementChild);
+    return el;
+  }
+  function shell(msg="Getting location-specific information…"){
+    const el=ensure(); if(el)el.innerHTML=`<div class="card-title">Local Travel Companion</div><div class="meta">${esc(msg)}</div>`;
+  }
+  function weatherName(c){return ({0:"Clear",1:"Mainly clear",2:"Partly cloudy",3:"Overcast",45:"Fog",48:"Fog",51:"Light drizzle",53:"Drizzle",55:"Heavy drizzle",61:"Light rain",63:"Rain",65:"Heavy rain",71:"Light snow",73:"Snow",75:"Heavy snow",80:"Rain showers",81:"Rain showers",82:"Heavy showers",95:"Thunderstorm",96:"Thunderstorm with hail",99:"Thunderstorm with hail"})[c]||"Weather";}
+  async function reverse(lat,lon){const u=`${NOM}?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;const r=await fetch(u,{headers:{Accept:"application/json"},cache:"no-store"});if(!r.ok)throw Error("address");const j=await r.json();const a=j.address||{};return {display:j.display_name||"Current location",district:a.county||a.state_district||"",city:a.city||a.town||a.municipality||a.village||"",locality:a.suburb||a.neighbourhood||a.quarter||a.city_district||""};}
+  async function weather(lat,lon){const u=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,precipitation_probability,weather_code&forecast_days=1&timezone=auto`;const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw Error("weather");return r.json();}
+  async function pois(lat,lon){const q=`[out:json][timeout:20];(nwr["amenity"~"^(hospital|clinic|police|pharmacy|atm|fuel)$"](around:${R},${lat},${lon});nwr["railway"="station"](around:${R},${lat},${lon});nwr["amenity"="bus_station"](around:${R},${lat},${lon}););out center tags;`;const r=await fetch(OSM,{method:"POST",headers:{"Content-Type":"text/plain;charset=UTF-8"},body:q});if(!r.ok)throw Error("places");return (await r.json()).elements||[];}
+  async function sachet(lat,lon,place){const q=new URLSearchParams({lat,lng:lon});if(place?.district)q.set("district",place.district);if(place?.city)q.set("city",place.city);if(place?.locality)q.set("locality",place.locality);const r=await fetch(`${WORKER}?${q}`,{cache:"no-store"});if(!r.ok)throw Error("sachet");return r.json();}
+  function poiData(list){const g={hospital:[],police:[],pharmacy:[],atm:[],fuel:[],rail:[],bus:[]};for(const p of list){const t=p.tags||{};let k=t.amenity==="hospital"||t.amenity==="clinic"?"hospital":t.amenity==="police"?"police":t.amenity==="pharmacy"?"pharmacy":t.amenity==="atm"?"atm":t.amenity==="fuel"?"fuel":t.railway==="station"?"rail":t.amenity==="bus_station"?"bus":"";if(k&&g[k].length<4)g[k].push({name:t.name||"Unnamed",lat:p.lat??p.center?.lat,lon:p.lon??p.center?.lon});}return g;}
+  function render(el,place,w,p,s){
+    const c=w?.current, now=Date.now();let i=w?.hourly?.time?.findIndex(t=>new Date(t).getTime()>=now);if(i<0)i=0;
+    const hours=(w?.hourly?.time||[]).slice(i,i+4).map((t,j)=>{const n=i+j;return `<span class="travel-chip">${new Date(t).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})} · ${w.hourly.temperature_2m[n]}°C · rain ${w.hourly.precipitation_probability[n]??0}%</span>`;}).join("");
+    const g=poiData(p||[]), loc=place?.display||"Current location";
+    const groups=["hospital","police","pharmacy","atm","fuel","rail","bus"],labels={hospital:"Hospitals/clinics",police:"Police",pharmacy:"Pharmacies",atm:"ATMs",fuel:"Fuel",rail:"Rail",bus:"Bus"};
+    let essentials="";groups.forEach(k=>{if(g[k].length)essentials+=`<p><strong>${labels[k]}</strong>: ${g[k].map(x=>`<a target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps?q=${x.lat},${x.lon}">${esc(x.name)}</a>`).join(" · ")}</p>`;});
+    const items=s?.items||[];const alertHtml=items.length?items.slice(0,3).map(x=>`<div class="travel-alert"><strong>${esc(x.title)}</strong>${x.description?`<br><span class="muted">${esc(x.description)}</span>`:""}${x.link?`<br><a class="action" target="_blank" rel="noopener noreferrer" href="${esc(x.link)}">Open SACHET alert</a>`:""}</div>`).join(""):"<span class="muted">No SACHET alert matched the current district/locality or Kerala-wide scope.</span>";
+    el.innerHTML=`<div class="card-title">Local Travel Companion</div><div class="meta"><strong>${esc(loc)}</strong><br>Updated ${new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})} · refreshes hourly or after about 5 km movement.</div><div class="travel-section"><strong>Weather now</strong><br>${c?`${c.temperature_2m}°C · feels ${c.apparent_temperature}°C · ${weatherName(c.weather_code)} · wind ${c.wind_speed_10m} km/h`:`Weather unavailable`}<div class="travel-chips">${hours}</div></div><div class="travel-section"><strong>NDMA SACHET — current location</strong><br>${alertHtml}</div><div class="travel-section"><strong>Nearby support</strong><br>${g.police.length} police · ${g.hospital.length} hospital/clinic · ${g.pharmacy.length} pharmacy · ${g.atm.length} ATM · ${g.fuel.length} fuel · ${g.rail.length} rail · ${g.bus.length} bus.<br><span class="muted">Factual mapped-service count; not a crime or official safety score.</span></div><div class="travel-section"><strong>Essentials within ~3.5 km</strong>${essentials||'<p class="muted">No mapped essentials found.</p>'}</div><div class="travel-section"><strong>Local happenings</strong><br><a class="action" target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=${encodeURIComponent((place?.city||place?.district||"Kerala")+" events festivals today")}">Events & festivals</a> <a class="action" target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=${encodeURIComponent((place?.city||place?.district||"Kerala")+" local news today")}">Local news</a></div>`;
+  }
+  async function refresh(lat,lon){if(!dataOn()||busy)return;busy=true;try{shell("Updating location-specific weather, official alerts and nearby services…");const place=await reverse(lat,lon);const [w,p,s]=await Promise.allSettled([weather(lat,lon),pois(lat,lon),sachet(lat,lon,place)]);render(ensure(),w.status==="fulfilled"?w.value:null,p.status==="fulfilled"?p.value:[],s.status==="fulfilled"?s.value:null);const top=$("#sachetTopStatus");if(top){top.textContent=`${place.city||place.district||"Kerala"} · ${s.status==="fulfilled"?(s.value.items||[]).length+" matching official alerts":"SACHET feed unavailable"}`;}last={lat,lon};lastAt=Date.now();}catch(e){shell("Location-specific information could not be refreshed. Tap the location button to retry.");}finally{busy=false;}}
+  function maybe(lat,lon){if(!last||Date.now()-lastAt>=HOUR||moved(last,{lat,lon})>=MOVE)refresh(lat,lon);}
+  function start(){if(!gpsOn()||!dataOn()||!navigator.geolocation)return;if(watch!==null)navigator.geolocation.clearWatch(watch);watch=navigator.geolocation.watchPosition(p=>{const lat=p.coords.latitude,lon=p.coords.longitude;maybe(lat,lon);},()=>{},{enableHighAccuracy:true,maximumAge:10000,timeout:20000});navigator.geolocation.getCurrentPosition(p=>refresh(p.coords.latitude,p.coords.longitude),()=>{}, {enableHighAccuracy:true,maximumAge:5000,timeout:20000});}
+  function observe(){const host=$("#content");if(!host)return;new MutationObserver(()=>ensure()).observe(host,{childList:true});}
+  window.LocalTravelCompanion={start,refresh};
+  observe();ensure();start();
+})();

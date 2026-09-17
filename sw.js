@@ -1,5 +1,5 @@
-const CACHE="local-alerts-v13";
-const CORE=["./","./index.html","./style.css","./app.js","./sachet.js","./gps-fix.js","./data.js","./manifest.json","./icon-192.png","./icon-512.png","./share.png","./contacts.html","./public-contacts.js"];
+const CACHE="local-alerts-v14";
+const CORE=["./","./index.html","./style.css","./app.js","./sachet.js","./gps-fix.js","./location-ui.js","./data.js","./manifest.json","./icon-192.png","./icon-512.png","./share.png","./contacts.html","./public-contacts.js"];
 
 self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

@@ -23,6 +23,13 @@
 .sachet-top-alerts ul{margin:4px 0 0;padding-left:18px}
 .sachet-top-alerts li{margin:4px 0}
 .sachet-top-alerts a{color:#145b9e;font-weight:700}
+.travel-top{padding:7px 16px 9px;background:rgba(236,245,255,.52);border-bottom:1px solid rgba(120,160,205,.18)}
+.travel-top-head{font-weight:800;color:#123b69;font-size:14px;margin-bottom:5px}
+.travel-top-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.travel-top-item{min-width:0;padding:7px 8px;border-radius:10px;background:rgba(255,255,255,.58);border:1px solid rgba(120,160,205,.22);font-size:11px;line-height:1.35;color:#334155}
+.travel-top-item strong{display:block;color:#163f6b;font-size:12px;margin-bottom:2px}
+.travel-top-links{display:flex;gap:6px;margin-top:6px}
+.travel-top-links a{flex:1;text-align:center;text-decoration:none;padding:6px;border-radius:9px;background:rgba(225,239,255,.82);border:1px solid rgba(80,145,210,.3);color:#145b9e;font-weight:700;font-size:11px}
 </style>
 </head>
 <body>
@@ -50,6 +57,19 @@
       <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/">Official SACHET</a>
       <a target="_blank" rel="noopener noreferrer" href="https://sachet.ndma.gov.in/CapFeed">SACHET RSS</a>
     </div>
+  </section>
+
+  <section id="travelTop" class="travel-top">
+    <div class="travel-top-head">LOCAL TRAVEL COMPANION</div>
+    <div class="travel-top-grid">
+      <div id="supportTop" class="travel-top-item"><strong>Local support</strong>Finding nearby police and medical facilities…</div>
+      <div id="essentialsTop" class="travel-top-item"><strong>Essentials · ~3.5 km</strong>Hospitals, police, pharmacies, ATMs, fuel, rail &amp; bus</div>
+    </div>
+    <div id="eventsTop" class="travel-top-links">
+      <a target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=Kerala+events+festivals+today">Events &amp; festivals</a>
+      <a target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=Kerala+local+news+today">Local news</a>
+    </div>
+    <div id="travelTopStatus" class="sachet-top-status">Uses current GPS location. Nearby-service data comes from mapped OpenStreetMap facilities; it is not a crime or official safety score.</div>
   </section>
 
   <section id="categoryStrip" class="category-strip"></section>

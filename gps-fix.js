@@ -13,6 +13,11 @@
     const accuracyText=acc>1000?` · Accuracy ~${Math.round(acc/100)/10} km`:` · Accuracy ~${Math.round(acc)} m`;
     setGps("GPS On","gps-on");
     loc.textContent=`GPS ${lat.toFixed(6)}, ${lon.toFixed(6)}${accuracyText} · finding address…`;
+
+    // Feed the confirmed position into the travel-alert engine immediately.
+    if(typeof currentCoords!=="undefined") currentCoords={lat,lon,accuracy:acc};
+    if(typeof maybeRefreshAreaData==="function") maybeRefreshAreaData(lat,lon);
+
     const u=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
     fetch(u,{headers:{Accept:"application/json"},cache:"no-store"}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(d=>{
       loc.textContent=`${d.display_name||"Address unavailable"} · GPS ${lat.toFixed(6)}, ${lon.toFixed(6)}${accuracyText}`;
